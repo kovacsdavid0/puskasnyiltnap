@@ -1,0 +1,21 @@
+{
+  "rules": {
+    ".read": true,
+
+    "currentGroup": { ".write": "auth != null" },
+    "phase":        { ".write": "auth != null" },
+    "winners":      { ".write": "auth != null" },
+    "locked":       { ".write": "auth != null" },
+    "resetFlag":    { ".write": "auth != null" },
+
+    "options": {
+      ".write": "auth != null",
+      "$i": {
+        "votes": {
+          ".write": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        }
+      }
+    }
+  }
+}

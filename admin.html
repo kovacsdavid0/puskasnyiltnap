@@ -3,242 +3,341 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Vezérlés – Talentum Nap</title>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDmb4zgzbOlF_8KtjwaCJn3y_2DwYapqQk",
-  authDomain: "talentum-nap.firebaseapp.com",
-  databaseURL: "https://talentum-nap-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "talentum-nap",
-  storageBucket: "talentum-nap.firebasestorage.app",
-  messagingSenderId: "930243290620",
-  appId: "1:930243290620:web:4ce6c75911ecd13ba4be79"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-
-/* ===============================
-   GROUP CONFIG (11 TOTAL OPTIONS)
-   =============================== */
-const groupSizes = [3, 3, 2, 3];
-
-function getGroupRange(groupIndex) {
-  let start = 0;
-  for (let i = 0; i < groupIndex; i++) start += groupSizes[i];
-  const end = start + groupSizes[groupIndex];
-  return { start, end };
-}
-
-/* ===============================
-   UI MESSAGE
-   =============================== */
-function msg(text, error = false) {
-  const status = document.getElementById("status");
-  status.textContent = text;
-  status.style.color = error ? "#ff4444" : "#00cc00";
-  status.style.opacity = "1";
-  setTimeout(() => status.style.opacity = "0", 4000);
-}
-
-/* ===============================
-   AUTH
-   =============================== */
-window.login = async () => {
-  const email = document.getElementById("email").value.trim();
-  const pw = document.getElementById("password").value;
-  try {
-    await signInWithEmailAndPassword(auth, email, pw);
-    msg("Bejelentkezve!");
-  } catch (e) {
-    msg("Hiba: " + e.message, true);
-  }
-};
-
-window.logout = async () => {
-  await signOut(auth);
-};
-
-/* ===============================
-   GROUP SWITCH
-   =============================== */
-window.setGroup = async (g) => {
-  try {
-    await set(ref(db, "currentGroup"), g);
-    const { start, end } = getGroupRange(g);
-    msg(`Aktív kör: ${g+1} (opciók ${start+1}–${end})`);
-  } catch (e) {
-    msg("Hiba a csoport váltásakor", true);
-  }
-};
-
-/* ===============================
-   RESET VOTES (DYNAMIC)
-   =============================== */
-window.clearFirebaseData = async () => {
-  if (!confirm("Biztosan nullázod az ÖSSZES szavazatot?")) return;
-
-  try {
-    const updates = {};
-    const totalOptions = groupSizes.reduce((a, b) => a + b, 0);
-
-    for (let i = 0; i < totalOptions; i++) {
-      updates[`options/${i}/votes`] = 0;
-    }
-
-    await update(ref(db), updates);
-    alert(`Szavazatok nullázva (0–${totalOptions - 1} opció)`);
-  } catch (err) {
-    alert("Hiba: " + err.message);
-  }
-};
-
-window.clearLocalStorage = () => {
-  localStorage.clear();
-};
-
-/* ===============================
-   RESULTS DISPLAY
-   =============================== */
-const resultsDiv = document.getElementById("results");
-
-function displayResults(options, currentGroup) {
-  if (!options) {
-    resultsDiv.textContent = "Nincsenek szavazatok még.";
-    return;
-  }
-
-  const { start, end } = getGroupRange(currentGroup);
-  const groupOptions = [];
-  let maxVotes = 1;
-
-  for (let i = start; i < end; i++) {
-    const opt = options[i];
-    if (opt) {
-      groupOptions.push(opt);
-      if (opt.votes > maxVotes) maxVotes = opt.votes;
-    }
-  }
-
-  let html = "";
-
-  groupOptions.forEach(opt => {
-    const widthPercent = maxVotes > 0 ? (opt.votes / maxVotes) * 100 : 0;
-    const progressBarHtml = opt.votes > 0
-      ? `<div class="progress-bar" style="width:${widthPercent}%">${opt.votes}</div>`
-      : ``;
-
-    html += `
-      <div class="result-item">
-        <div class="result-text">${opt.text}</div>
-        <div class="progress-bar-container">
-          ${progressBarHtml}
-        </div>
-      </div>
-    `;
-  });
-
-  resultsDiv.innerHTML = html;
-}
-
-/* ===============================
-   AUTH STATE + LISTENERS
-   =============================== */
-onAuthStateChanged(auth, user => {
-  const loginBox = document.getElementById("login-box");
-  const panel = document.getElementById("admin-panel");
-
-  if (user) {
-    loginBox.style.display = "none";
-    panel.style.display = "block";
-    msg("Admin panel aktív");
-
-    const optionsRef = ref(db, "options");
-    const groupRef = ref(db, "currentGroup");
-
-    onValue(groupRef, groupSnap => {
-      const currentGroup = groupSnap.val() ?? 0;
-
-      onValue(optionsRef, optionsSnap => {
-        const options = optionsSnap.val();
-        displayResults(options, currentGroup);
-      });
-    });
-
-  } else {
-    loginBox.style.display = "block";
-    panel.style.display = "none";
-    msg("Bejelentkezés szükséges", true);
-  }
-});
-</script>
+<meta name="robots" content="noindex">
+<title>Admin – Nyílt Nap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
 
 <style>
-body { font-family: Arial, sans-serif; background: #0d1b2a; color: white; text-align: center; padding: 40px; margin: 0; }
-h1 { color: #e0e0e0; margin-bottom: 30px; }
-#status { font-size: 1.4rem; margin: 20px 0; min-height: 40px; }
-.container { max-width: 900px; margin: 0 auto; }
-.box { background: #1b263b; padding: 40px; border-radius: 12px; }
-input { width: 100%; max-width: 400px; padding: 14px; margin: 12px auto; display: block; border-radius: 6px; border: 1px solid #444; background: #2a3443; color: white; font-size: 1.1rem; }
-button { padding: 14px 30px; font-size: 1.2rem; border: none; border-radius: 8px; cursor: pointer; margin: 12px; }
-.group { background: #1b98e0; color: white; }
-.group:hover { background: #0d7bd9; }
-.reset { background: #e63946; color: white; font-weight: bold; padding: 18px 60px; }
-.reset:hover { background: #d00000; }
-.logout { background: #606c38; color: white; }
+.grid { display: grid; gap: 16px; }
 
-.result-item { margin-bottom: 12px; text-align: left; }
-.result-text { font-weight: bold; margin-bottom: 6px; }
-.progress-bar-container { background: #0d1b2a; border-radius: 6px; overflow: hidden; height: 20px; }
-.progress-bar { height: 100%; background: #1b98e0; text-align: right; color: white; padding-right: 8px; transition: width 0.5s ease; }
+.login { max-width: 420px; margin: 8vh auto 0; display: grid; gap: 12px; }
+
+input {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 14px;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+}
+
+input:focus { outline: none; border-color: var(--cyan); }
+
+.section-title { font-size: 20px; margin-bottom: 12px; }
+
+.rounds { display: grid; gap: 12px; }
+
+.round {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.round.current { border-color: var(--yellow); background: rgba(255, 210, 63, 0.08); }
+.round .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.round h3 { font-size: 18px; }
+.round .state { font-size: 13px; font-weight: 800; color: var(--muted); }
+.round .state.on { color: var(--yellow); }
+.round .state.done { color: var(--green); }
+.round .codes { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; }
+.round .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.result { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; margin-bottom: 14px; }
+.result .label { font-weight: 800; }
+.result .track { grid-column: 1 / -1; height: 18px; border-radius: 8px; background: var(--bg); overflow: hidden; }
+.result .fill { height: 100%; width: 0; background: var(--cyan); transition: width 0.5s ease; }
+.result.win .fill { background: var(--yellow); }
+
+.phase { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate(-50%, 20px);
+    padding: 12px 18px;
+    font-weight: 800;
+    color: var(--ink);
+    background: var(--green);
+    border: var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    max-width: calc(100% - 32px);
+}
+
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.error { background: var(--red); color: #fff; }
+
+@media (min-width: 900px) {
+    .layout { grid-template-columns: 1.2fr 1fr; align-items: start; }
+    .rounds { grid-template-columns: 1fr 1fr; }
+}
 </style>
 </head>
 
 <body>
-<div class="container">
-<h1>Admin Vezérlés – Talentum Nap</h1>
-<div id="status"></div>
+<main class="wrap">
+    <header class="topbar">
+        <span class="brand">Nyílt Nap · Admin</span>
+        <span class="live" id="live">Élő</span>
+    </header>
 
-<div class="box">
-  <div id="login-box">
-    <input id="email" type="email" placeholder="Email cím">
-    <input id="password" type="password" placeholder="Jelszó">
-    <button onclick="login()" style="background:#00cc00; color:white; width:200px;">Belépés</button>
-  </div>
+    <!-- LOGIN -->
+    <form class="panel login" id="login-box" hidden>
+        <h1 class="section-title">Bejelentkezés</h1>
+        <input id="email" type="email" placeholder="Email cím" autocomplete="username" required>
+        <input id="password" type="password" placeholder="Jelszó" autocomplete="current-password" required>
+        <button class="btn green" type="submit">Belépés</button>
+    </form>
 
-  <div id="admin-panel" style="display:none;">
-    <h2 style="color:#00cc00;">Admin Eszközök</h2>
+    <!-- PANEL -->
+    <div id="admin-panel" hidden>
+        <div class="grid layout">
+            <section class="panel">
+                <h2 class="section-title">Körök</h2>
+                <div class="rounds" id="rounds"></div>
+            </section>
 
-    <div>
-      <button class="group" onclick="setGroup(0)">1–3</button>
-      <button class="group" onclick="setGroup(1)">4–6</button>
-      <button class="group" onclick="setGroup(2)">7–8</button>
-      <button class="group" onclick="setGroup(3)">9–11</button>
+            <div class="grid">
+                <section class="panel">
+                    <h2 class="section-title" id="results-title">Élő eredmény</h2>
+                    <div id="results">Betöltés…</div>
+                </section>
+
+                <section class="panel">
+                    <h2 class="section-title">Mód</h2>
+                    <div class="phase">
+                        <button class="btn small" id="phase-vote">Szavazás</button>
+                        <button class="btn small" id="phase-play">Kipróbálás</button>
+                    </div>
+                    <p class="muted">Kipróbálás: mindenki megkapja a jelenlegi kör kódját (aki nem szavazott, a győztesét).</p>
+                </section>
+
+                <section class="panel">
+                    <h2 class="section-title">Veszélyzóna</h2>
+                    <div class="phase">
+                        <button class="btn red small" id="reset">Minden szavazat nullázása</button>
+                        <button class="btn ghost small" id="logout">Kijelentkezés</button>
+                    </div>
+                    <p class="muted">A nullázás a gyerekek telefonján is újra engedi a szavazást.</p>
+                </section>
+            </div>
+        </div>
     </div>
+</main>
 
-    <div style="margin-top: 40px;">
-      <button class="reset" onclick="clearFirebaseData()">Szavazás eredmény reset</button>
-      <button onclick="clearLocalStorage()">clear</button>
-    </div>
+<div class="toast" id="toast"></div>
 
-    <br><br>
-    <button class="logout" onclick="logout()">Kijelentkezés</button>
-  </div>
-</div>
-</div>
+<script type="module">
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { app, db, ROUNDS, TOTAL_OPTIONS, roundOptions, leaderIndex, clampRound } from "./js/shared.js";
 
-<div style="margin-top: 40px;">
-<h3>Szavazás Eredményei</h3>
-<div id="results" style="background:#2a3443; padding:20px; border-radius:8px; min-height:60px;">
-Betöltés...
-</div>
-</div>
+const auth = getAuth(app);
+const $ = (id) => document.getElementById(id);
 
+const state = { round: 0, options: null, phase: "vote", winners: {}, locked: {} };
+
+/* ===============================
+   UI HELPERS
+   =============================== */
+let toastTimer;
+function msg(text, error = false) {
+    const t = $("toast");
+    t.textContent = text;
+    t.classList.toggle("error", error);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
+}
+
+async function run(action, okText) {
+    try {
+        await action();
+        if (okText) msg(okText);
+    } catch (e) {
+        msg("Hiba: " + e.message, true);
+    }
+}
+
+/* ===============================
+   ACTIONS
+   =============================== */
+function startRound(r) {
+    return run(() => update(ref(db), { currentGroup: r, phase: "vote" }), `${r + 1}. kör aktív: ${ROUNDS[r].label}`);
+}
+
+function lockRound(r, winner) {
+    const list = roundOptions(state.options, r);
+    if (winner === undefined) {
+        winner = leaderIndex(list);
+        if (winner < 0) return msg("Még nincs szavazat ebben a körben.", true);
+        const top = list[winner].votes;
+        const tied = list.filter((o) => o.votes === top).length > 1;
+        if (tied && !confirm(`Döntetlen! Legyen „${list[winner].text}” a győztes? (Az eredménynél kézzel is választhatsz.)`)) return;
+    }
+    return run(
+        () => update(ref(db), { [`winners/${r}`]: winner, [`locked/${r}`]: true }),
+        `Győztes: ${list[winner].text} → mehet a Godotba!`,
+    );
+}
+
+function reopenRound(r) {
+    return run(() => update(ref(db), { [`winners/${r}`]: null, [`locked/${r}`]: null }), `${r + 1}. kör újranyitva`);
+}
+
+function setPhase(phase) {
+    return run(() => set(ref(db, "phase"), phase), phase === "play" ? "Kipróbálás mód bekapcsolva" : "Szavazás mód");
+}
+
+async function resetAll() {
+    if (!confirm("Biztosan nullázod az ÖSSZES szavazatot és győztest?")) return;
+    const updates = {
+        currentGroup: 0,
+        phase: "vote",
+        winners: null,
+        locked: null,
+        resetFlag: Date.now(),
+    };
+    for (let i = 0; i < TOTAL_OPTIONS; i++) updates[`options/${i}/votes`] = 0;
+    await run(() => update(ref(db), updates), "Minden nullázva");
+}
+
+/* ===============================
+   RENDER
+   =============================== */
+function renderRounds() {
+    const box = $("rounds");
+    box.innerHTML = "";
+
+    ROUNDS.forEach((r, i) => {
+        const list = roundOptions(state.options, i);
+        const total = list.reduce((n, o) => n + o.votes, 0);
+        const locked = !!state.locked[i];
+        const winner = state.winners[i];
+        const current = i === state.round;
+
+        const el = document.createElement("div");
+        el.className = "round" + (current ? " current" : "");
+        el.innerHTML = `
+            <div class="top"><h3></h3><span class="state"></span></div>
+            <div class="muted"></div>
+            <div class="codes"></div>
+            <div class="actions"></div>`;
+        el.querySelector("h3").textContent = `${i + 1}. ${r.label}`;
+        el.querySelector(".muted").textContent = `${total} szavazat`;
+        el.querySelector(".codes").textContent = list.map((o, j) => `${o.text}: ${r.codes[j]}`).join(" · ");
+
+        const st = el.querySelector(".state");
+        if (locked) {
+            st.textContent = "✓ " + (list[winner]?.text ?? "lezárva");
+            st.classList.add("done");
+        } else if (current) {
+            st.textContent = "● szavazás folyik";
+            st.classList.add("on");
+        } else {
+            st.textContent = "vár";
+        }
+
+        const actions = el.querySelector(".actions");
+        const btn = (label, cls, fn) => {
+            const b = document.createElement("button");
+            b.className = `btn small ${cls}`;
+            b.textContent = label;
+            b.onclick = fn;
+            actions.appendChild(b);
+        };
+        if (!current || state.phase === "play") btn("Indítás", "blue", () => startRound(i));
+        if (locked) btn("Újranyitás", "ghost", () => reopenRound(i));
+        else btn("Lezárás", "green", () => lockRound(i));
+
+        box.appendChild(el);
+    });
+}
+
+function renderResults() {
+    const r = state.round;
+    const list = roundOptions(state.options, r);
+    const total = list.reduce((n, o) => n + o.votes, 0);
+    const winner = state.locked[r] ? state.winners[r] : null;
+
+    $("results-title").textContent = `Élő eredmény – ${ROUNDS[r].label}`;
+    const box = $("results");
+    box.innerHTML = "";
+
+    list.forEach((opt, i) => {
+        const pct = total ? Math.round((opt.votes / total) * 100) : 0;
+        const row = document.createElement("div");
+        row.className = "result" + (winner === i ? " win" : "");
+        row.innerHTML = `
+            <span class="label"></span>
+            <button class="btn small ghost">Ez nyer</button>
+            <div class="track"><div class="fill"></div></div>`;
+        row.querySelector(".label").textContent = `${opt.text} – ${opt.votes} (${pct}%)`;
+        row.querySelector(".fill").style.width = pct + "%";
+        row.querySelector("button").onclick = () => lockRound(r, i);
+        box.appendChild(row);
+    });
+
+    $("phase-vote").classList.toggle("active", state.phase !== "play");
+    $("phase-play").classList.toggle("active", state.phase === "play");
+}
+
+function render() {
+    renderRounds();
+    renderResults();
+}
+
+/* ===============================
+   EVENTS
+   =============================== */
+$("login-box").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+        await signInWithEmailAndPassword(auth, $("email").value.trim(), $("password").value);
+    } catch (err) {
+        msg("Hiba: " + err.message, true);
+    }
+});
+$("logout").onclick = () => signOut(auth);
+$("reset").onclick = resetAll;
+$("phase-vote").onclick = () => setPhase("vote");
+$("phase-play").onclick = () => setPhase("play");
+
+/* ===============================
+   AUTH + LISTENERS
+   =============================== */
+let listening = false;
+
+onAuthStateChanged(auth, (user) => {
+    $("login-box").hidden = !!user;
+    $("admin-panel").hidden = !user;
+    if (!user || listening) return;
+    listening = true;
+
+    const ignore = () => {};
+    onValue(ref(db, "currentGroup"), (s) => { state.round = clampRound(s.val()); render(); });
+    onValue(ref(db, "options"), (s) => { state.options = s.val(); render(); });
+    onValue(ref(db, "phase"), (s) => { state.phase = s.val() || "vote"; render(); }, ignore);
+    onValue(ref(db, "winners"), (s) => { state.winners = s.val() || {}; render(); }, ignore);
+    onValue(ref(db, "locked"), (s) => { state.locked = s.val() || {}; render(); }, ignore);
+});
+
+onValue(ref(db, ".info/connected"), (s) => {
+    $("live").classList.toggle("offline", !s.val());
+    $("live").textContent = s.val() ? "Élő" : "Kapcsolódás…";
+});
+</script>
 </body>
 </html>

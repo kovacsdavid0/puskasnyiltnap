@@ -2,243 +2,320 @@
 <html lang="hu">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Szavazás</title>
-
-<style>
-:root {
-    --bg1: #1e3c72;
-    --bg2: #2a5298;
-    --card-radius: 16px;
-}
-
-* { box-sizing: border-box; }
-
-body {
-    font-family: Arial, sans-serif;
-    background: linear-gradient(135deg, var(--bg1), var(--bg2));
-    color: white;
-    text-align: center;
-    margin: 0;
-    padding: 16px;
-    min-height: 100vh;
-}
-
-h1 {
-    margin: 16px 0 24px;
-    font-size: 26px;
-}
-
-#options {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    width: 100%;
-    max-width: 520px;
-    margin: 0 auto;
-}
-
-.option {
-    width: 100%;
-    padding: 16px;
-    border-radius: var(--card-radius);
-    background: rgb(141, 226, 255);
-    color: #333;
-    font-size: 18px;
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-    -webkit-tap-highlight-color: transparent;
-}
-
-.option:active { transform: scale(0.98); }
-
-.option img {
-    width: 100%;
-    height: 180px;
-    object-fit: contain;
-    border-radius: 12px;
-    margin-bottom: 12px;
-    image-rendering: pixelated;
-}
-
-.option strong { font-size: 18px; }
-
-.votes {
-    margin-top: 6px;
-    font-size: 15px;
-    opacity: 0.8;
-
-}
-
-.disabled {
-    opacity: 0.45;
-    pointer-events: none;
-}
-
-#waiting {
-    margin-top: 22px;
-    font-size: 16px;
-    display: none;
-    opacity: 0.85;
-}
-
-/* Tablets */
-@media (min-width: 600px) {
-    h1 { font-size: 30px; }
-    #options { gap: 18px; }
-}
-
-/* Desktop */
-@media (min-width: 900px) {
-    body { padding: 32px; }
-    #options {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-        max-width: 1000px;
-    }
-    .option { width: 300px; }
-}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#1b1036" />
+<title>Szavazás – Nyílt Nap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
 </head>
 
 <body>
-<h1>Szavazz!</h1>
-<div id="options"></div>
-<div id="waiting">Várakozás a következő körre...</div>
+<main class="wrap">
+    <header class="topbar">
+        <span class="brand">Nyílt Nap</span>
+        <span class="live" id="live">Élő</span>
+    </header>
+
+    <!-- VOTING -->
+    <section id="vote-view">
+        <ol class="steps" id="steps"></ol>
+        <p class="eyebrow" id="eyebrow">1. kör</p>
+        <h1 class="title" id="prompt">Betöltés…</h1>
+        <div class="options" id="options"></div>
+        <div class="banner" id="banner"></div>
+    </section>
+
+    <!-- PLAY: the secret code for this round's choice -->
+    <section id="play-view" hidden>
+        <p class="eyebrow" id="play-eyebrow">1. kör – Próbáld ki!</p>
+        <h1 class="title" id="play-title">Betöltés…</h1>
+        <div class="unlock">
+            <div class="art" id="play-art"><img id="play-img" alt=""></div>
+            <div class="val" id="play-name"></div>
+            <div class="note" id="play-note"></div>
+            <div id="code-wrap">
+                <div class="code-label">A titkos kódod:</div>
+                <div class="code" id="code">----</div>
+                <p class="code-help">Írd be ezt a kódot a játékba!</p>
+            </div>
+            <a class="btn pink" id="play-btn" target="_blank" rel="noopener" hidden>▶ Játék megnyitása</a>
+        </div>
+
+        <div id="history" hidden>
+            <h2 class="history-title">Korábbi kódjaid</h2>
+            <ul class="history" id="history-list"></ul>
+        </div>
+    </section>
+</main>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
-    getDatabase,
     ref,
     onValue,
     update,
     increment,
-    get,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import {
+    db, ROUNDS, GAME_URL, roundRange, roundOptions, stageCode, crispIfSmall, clampRound,
+} from "./js/shared.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyDmb4zgzbOlF_8KtjwaCJn3y_2DwYapqQk",
-    authDomain: "talentum-nap.firebaseapp.com",
-    databaseURL: "https://talentum-nap-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "talentum-nap",
-    storageBucket: "talentum-nap.firebasestorage.app",
-    messagingSenderId: "930243290620",
-    appId: "1:930243290620:web:4ce6c75911ecd13ba4be79",
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-const optionsDiv = document.getElementById("options");
-const waitingText = document.getElementById("waiting");
+const $ = (id) => document.getElementById(id);
 
 /* ===============================
-   GROUP CONFIG (MATCHES ADMIN)
+   STATE
    =============================== */
-const groupSizes = [3, 3, 2, 3];
+const state = {
+    round: 0,
+    options: null,
+    phase: "vote",
+    winners: {},
+    locked: {},
+    resetId: null,
+    resetReady: false, // don't accept votes until we know which reset we're in
+};
 
-function getGroupRange(groupIndex) {
-    let start = 0;
-    for (let i = 0; i < groupIndex; i++) start += groupSizes[i];
-    const end = start + groupSizes[groupIndex];
-    return { start, end };
+const STORE_KEY = "talentum.picks";
+localStorage.removeItem("votedGroups"); // old format
+
+// { resetId, picks: { [round]: optionIndexInRound } }
+function loadSaved() {
+    try {
+        return JSON.parse(localStorage.getItem(STORE_KEY)) || { resetId: null, picks: {} };
+    } catch {
+        return { resetId: null, picks: {} };
+    }
+}
+let saved = loadSaved();
+
+function persist() {
+    localStorage.setItem(STORE_KEY, JSON.stringify(saved));
 }
 
 /* ===============================
-   IMAGES (GROUP 3 HAS 2)
+   VOTING VIEW
    =============================== */
-const kepek = [
-    ["assets/adventure.png","assets/dino.png","assets/shadow.png"],
-    ["assets/boar.png","assets/bunny.png","assets/template.png"],
-    ["assets/abyss.png","assets/forest.png"],
-    ["assets/fly.png","assets/sniper.png","assets/speeed.png"]
-];
+let builtRound = -1;
 
-let currentGroup = 0;
-let hasVotedGroups = JSON.parse(localStorage.getItem("votedGroups") || "{}");
+function buildSteps() {
+    const steps = $("steps");
+    steps.style.setProperty("--count", ROUNDS.length);
+    steps.innerHTML = "";
+    ROUNDS.forEach((r, i) => {
+        const li = document.createElement("li");
+        li.className = "step";
+        li.textContent = r.label;
+        steps.appendChild(li);
+    });
+}
 
-/* ===============================
-   GROUP LISTENER
-   =============================== */
-onValue(ref(db, "currentGroup"), (snapshot) => {
-    currentGroup = snapshot.val() ?? 0;
-    loadOptions(currentGroup);
-});
+function buildRound(round) {
+    builtRound = round;
+    const list = roundOptions(state.options, round);
+    const box = $("options");
+    box.innerHTML = "";
 
-/* ===============================
-   RESET LISTENER
-   =============================== */
-onValue(ref(db, "resetFlag"), (snapshot) => {
-    if (snapshot.exists() && snapshot.val() === true) {
-        hasVotedGroups = {};
-        localStorage.removeItem("votedGroups");
-        waitingText.style.display = "none";
-        loadOptions(currentGroup);
+    list.forEach((opt, i) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "card";
+        card.innerHTML = `
+            <span class="badge mine">A te szavazatod ✓</span>
+            <span class="badge win">★ Győztes</span>
+            <span class="art"><img alt=""></span>
+            <span class="body">
+                <span class="name"></span>
+                <span class="hint">Koppints a szavazáshoz</span>
+                <span class="meter">
+                    <span class="track"><span class="fill"></span></span>
+                    <span class="num"></span>
+                </span>
+            </span>`;
+        const img = card.querySelector("img");
+        img.src = opt.img;
+        crispIfSmall(img);
+        card.addEventListener("click", () => vote(round, i));
+        box.appendChild(card);
+    });
+}
+
+function renderVote() {
+    const round = state.round;
+    if (builtRound !== round) buildRound(round);
+
+    const r = ROUNDS[round];
+    $("eyebrow").textContent = `${round + 1}. kör / ${ROUNDS.length}`;
+    $("prompt").textContent = r.prompt;
+
+    [...$("steps").children].forEach((li, i) => {
+        li.classList.toggle("active", i === round);
+        li.classList.toggle("done", i < round);
+    });
+
+    const list = roundOptions(state.options, round);
+    const total = list.reduce((n, o) => n + o.votes, 0);
+    const mine = saved.picks[round];
+    const hasVoted = mine !== undefined;
+    const locked = !!state.locked[round];
+    const winner = state.winners[round];
+
+    const box = $("options");
+    box.classList.toggle("show-results", hasVoted || locked);
+
+    [...box.children].forEach((card, i) => {
+        const opt = list[i];
+        const pct = total ? Math.round((opt.votes / total) * 100) : 0;
+        card.querySelector(".name").textContent = opt.text;
+        card.querySelector("img").alt = opt.text;
+        card.querySelector(".fill").style.width = pct + "%";
+        card.querySelector(".num").textContent = `${pct}% · ${opt.votes} szavazat`;
+        card.disabled = hasVoted || locked;
+        card.classList.toggle("picked", mine === i);
+        card.classList.toggle("winner", locked && winner === i);
+    });
+
+    const banner = $("banner");
+    banner.classList.add("visible");
+    if (locked && winner != null) {
+        banner.innerHTML = `A győztes: <strong></strong>! Figyeld, ahogy bekerül a játékba<span class="dots"></span>`;
+        banner.querySelector("strong").textContent = list[winner]?.text ?? "";
+    } else if (locked) {
+        banner.textContent = "Ez a kör lezárult. Várj a következőre!";
+    } else if (hasVoted) {
+        banner.innerHTML = `Köszi a szavazatot! Az eredmény élőben frissül<span class="dots"></span>`;
+    } else {
+        banner.classList.remove("visible");
     }
-});
+}
 
 /* ===============================
-   LOAD OPTIONS
+   PLAY VIEW
    =============================== */
-async function loadOptions(group) {
-    optionsDiv.innerHTML = "";
+let lastPlayRound = -1;
 
-    const hasVoted = !!hasVotedGroups[group];
-    waitingText.style.display = hasVoted ? "block" : "none";
+function renderPlay() {
+    const round = state.round;
+    const list = roundOptions(state.options, round);
+    const got = stageCode(round, saved.picks, state.winners, state.options);
 
-    const { start, end } = getGroupRange(group);
+    if (lastPlayRound !== round) {
+        lastPlayRound = round;
+        navigator.vibrate?.([40, 60, 40]);
+    }
 
-    for (let i = start; i < end; i++) {
-        const snapshot = await get(ref(db, `options/${i}`));
-        if (!snapshot.exists()) continue;
+    $("play-eyebrow").textContent = `${round + 1}. kör – Próbáld ki!`;
+    $("play-title").textContent = ROUNDS[round].label;
 
-        const data = snapshot.val();
-        const div = document.createElement("div");
-        div.className = "option";
-
-        const kepIndex = i - start;
-        const kepUrl =
-            kepek[group]?.[kepIndex] ||
-            "https://via.placeholder.com/300x200?text=Nincs+kép";
-
-        div.innerHTML = `
-            <img src="${kepUrl}" alt="${data.text}">
-            <strong>${data.text}</strong>
-            <div class="votes">Szavazatok: ${data.votes || 0}</div>
-        `;
-
-        if (hasVoted) {
-            div.classList.add("disabled");
-        } else {
-            div.onclick = () => vote(i, group);
+    const img = $("play-img");
+    if (got) {
+        if (img.getAttribute("src") !== list[got.option].img) {
+            img.classList.remove("pixel");
+            img.src = list[got.option].img;
+            crispIfSmall(img);
         }
-
-        optionsDiv.appendChild(div);
+        img.alt = list[got.option].text;
+        $("play-name").textContent = list[got.option].text;
+        $("play-note").textContent = got.fromWinner ? "Nem szavaztál – ez a közös győztes kódja" : "A te választásod";
+        $("code").textContent = got.code;
+    } else {
+        $("play-name").textContent = "";
+        $("play-note").textContent = "Ehhez a körhöz még nincs kód.";
     }
+    $("play-art").hidden = !got;
+    $("code-wrap").hidden = !got;
+
+    const playBtn = $("play-btn");
+    playBtn.hidden = !GAME_URL;
+    if (GAME_URL) playBtn.href = GAME_URL;
+
+    // Backup of earlier codes, in case the game lost its save.
+    const historyList = $("history-list");
+    historyList.innerHTML = "";
+    for (let r = 0; r < round; r++) {
+        const prev = stageCode(r, saved.picks, state.winners, state.options);
+        if (!prev) continue;
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="h-label"></span><span class="h-code"></span>`;
+        li.querySelector(".h-label").textContent = `${ROUNDS[r].label}: ${roundOptions(state.options, r)[prev.option].text}`;
+        li.querySelector(".h-code").textContent = prev.code;
+        historyList.appendChild(li);
+    }
+    $("history").hidden = historyList.children.length === 0;
+}
+
+function render() {
+    const playing = state.phase === "play";
+    if (!playing) lastPlayRound = -1;
+    $("vote-view").hidden = playing;
+    $("play-view").hidden = !playing;
+    playing ? renderPlay() : renderVote();
 }
 
 /* ===============================
    VOTE
    =============================== */
-function vote(index, group) {
-    if (hasVotedGroups[group]) return;
+function vote(round, index) {
+    if (!state.resetReady || saved.picks[round] !== undefined || state.locked[round] || round !== state.round) return;
 
-    update(ref(db, `options/${index}`), { votes: increment(1) });
+    const { start } = roundRange(round);
+    update(ref(db, `options/${start + index}`), { votes: increment(1) });
 
-    hasVotedGroups[group] = true;
-    localStorage.setItem("votedGroups", JSON.stringify(hasVotedGroups));
-
-    document
-        .querySelectorAll(".option")
-        .forEach((el) => el.classList.add("disabled"));
-
-    waitingText.style.display = "block";
-
-    location.reload();
+    saved.resetId = state.resetId;
+    saved.picks[round] = index;
+    persist();
+    navigator.vibrate?.(30);
+    render();
 }
+
+/* ===============================
+   FIREBASE LISTENERS
+   =============================== */
+const ignore = () => {}; // optional paths may be blocked by rules – keep defaults
+
+onValue(ref(db, "currentGroup"), (snap) => {
+    state.round = clampRound(snap.val());
+    render();
+});
+
+onValue(ref(db, "options"), (snap) => {
+    state.options = snap.val();
+    render();
+});
+
+onValue(ref(db, "phase"), (snap) => {
+    state.phase = snap.val() || "vote";
+    render();
+}, ignore);
+
+onValue(ref(db, "winners"), (snap) => {
+    state.winners = snap.val() || {};
+    render();
+}, ignore);
+
+onValue(ref(db, "locked"), (snap) => {
+    state.locked = snap.val() || {};
+    render();
+}, ignore);
+
+// Admin reset writes a new resetFlag -> forget this device's votes.
+onValue(ref(db, "resetFlag"), (snap) => {
+    state.resetId = snap.val() ?? null;
+    state.resetReady = true;
+    if (saved.resetId !== state.resetId) {
+        saved = { resetId: state.resetId, picks: {} };
+        persist();
+    }
+    render();
+}, () => { state.resetReady = true; });
+
+onValue(ref(db, ".info/connected"), (snap) => {
+    const live = $("live");
+    live.classList.toggle("offline", !snap.val());
+    live.textContent = snap.val() ? "Élő" : "Kapcsolódás…";
+});
+
+buildSteps();
 </script>
 </body>
 </html>

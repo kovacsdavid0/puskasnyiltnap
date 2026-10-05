@@ -1,170 +1,274 @@
 <!DOCTYPE html>
 <html lang="hu">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Szavazás Eredmények – Talentum Nap</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eredmények – Talentum Nap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
 
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+<style>
+.stage {
+    display: grid;
+    gap: 24px;
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 24px 16px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    align-content: center;
+}
 
-    // Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDmb4zgzbOlF_8KtjwaCJn3y_2DwYapqQk",
-      authDomain: "talentum-nap.firebaseapp.com",
-      databaseURL: "https://talentum-nap-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "talentum-nap",
-      storageBucket: "talentum-nap.firebasestorage.app",
-      messagingSenderId: "930243290620",
-      appId: "1:930243290620:web:4ce6c75911ecd13ba4be79"
-    };
+.rows { display: grid; gap: 16px; }
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+.row {
+    display: grid;
+    grid-template-columns: clamp(70px, 9vw, 130px) 1fr;
+    gap: 18px;
+    align-items: center;
+    padding: 12px;
+    color: var(--ink);
+    background: var(--card);
+    border: var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    position: relative;
+    transition: background 0.3s ease;
+}
 
-    const resultsDiv = document.getElementById("results");
+.row .art {
+    aspect-ratio: 1;
+    border: 2px solid var(--ink);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
 
-    // group structure (3,3,2,3)
-    const groupSizes = [3, 3, 2, 3];
+.row .art img { width: 100%; height: 100%; object-fit: contain; }
 
-    function displayResults(options, currentGroup) {
-      if (!options) {
-        resultsDiv.textContent = "Nincsenek szavazatok még.";
-        return;
-      }
+.row .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+}
 
-      // calculate start index
-      let start = 0;
-      for (let i = 0; i < currentGroup; i++) {
-        start += groupSizes[i];
-      }
+.row .name { font-family: var(--font-display); font-size: clamp(22px, 2.6vw, 38px); }
+.row .pct { font-family: var(--font-display); font-size: clamp(22px, 2.6vw, 38px); }
+.row .count { font-size: clamp(13px, 1.1vw, 17px); font-weight: 800; color: #6b5a92; margin-top: 6px; }
 
-      const end = start + groupSizes[currentGroup];
+.row .track {
+    height: clamp(18px, 2.2vw, 30px);
+    border: 2px solid var(--ink);
+    border-radius: 10px;
+    background: #e9e0cf;
+    overflow: hidden;
+}
 
-      const groupOptions = [];
-      let maxVotes = 1;
+.row .fill {
+    height: 100%;
+    width: 0;
+    background: var(--cyan);
+    transition: width 0.7s cubic-bezier(.2, .8, .2, 1);
+}
 
-      for (let i = start; i < end; i++) {
-        const opt = options[i];
-        if (opt) {
-          groupOptions.push(opt);
-          if (opt.votes > maxVotes) maxVotes = opt.votes;
-        }
-      }
+.row.leading .fill { background: var(--pink); }
+.row.winner { background: var(--yellow); }
+.row.winner .badge { display: block; background: var(--card); }
 
-      let html = "";
+.side {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+    text-align: center;
+}
 
-      groupOptions.forEach(opt => {
-        const widthPercent = maxVotes > 0 ? (opt.votes / maxVotes) * 100 : 0;
+.qr {
+    padding: 14px;
+    background: #fff;
+    border: var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    max-width: 320px;
+    margin: 0 auto;
+}
 
-        const progressBarHtml = opt.votes > 0
-          ? `<div class="progress-bar" style="width:${widthPercent}%">${opt.votes}</div>`
-          : ``;
+.qr img { width: 100%; }
 
-        html += `
-          <div class="result-item">
-            <div class="result-text">${opt.text}</div>
-            <div class="progress-bar-container">
-              ${progressBarHtml}
-            </div>
-          </div>
-        `;
-      });
+.url {
+    font-family: var(--font-display);
+    font-size: clamp(18px, 1.6vw, 24px);
+    color: var(--yellow);
+    word-break: break-all;
+}
 
-      resultsDiv.innerHTML = html;
-    }
+.total {
+    font-family: var(--font-display);
+    font-size: clamp(40px, 5vw, 72px);
+    line-height: 1;
+}
 
-    // Firebase listeners
-    const optionsRef = ref(db, "options");
-    const groupRef = ref(db, "currentGroup");
+.final .build { margin-bottom: 8px; }
+.final .slot .val { font-size: clamp(18px, 2vw, 28px); }
 
-    onValue(groupRef, groupSnap => {
-      const currentGroup = groupSnap.val() || 0;
-
-      onValue(optionsRef, optionsSnap => {
-        const options = optionsSnap.val();
-        displayResults(options, currentGroup);
-      });
-    });
-  </script>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0d1b2a;
-      color: white;
-      text-align: center;
-      padding: 40px;
-      margin: 0;
-    }
-
-    h1 {
-      color: #00cc00;
-      margin-bottom: 30px;
-    }
-
-    #results {
-      background: #1b263b;
-      padding: 20px;
-      border-radius: 12px;
-      min-height: 120px;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .result-item {
-      margin-bottom: 12px;
-      text-align: left;
-    }
-
-    .result-text {
-      font-weight: bold;
-      margin-bottom: 6px;
-    }
-
-    .progress-bar-container {
-      background: #0d1b2a;
-      border-radius: 6px;
-      overflow: hidden;
-      height: 24px;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background: #1b98e0;
-      width: 0%;
-      text-align: right;
-      color: white;
-      padding-right: 8px;
-      box-sizing: border-box;
-      transition: width 0.5s ease;
-      line-height: 24px;
-      font-weight: bold;
-    }
-
-    .image img{
-      width: 300px;
-    }
-
-    .image{
-      margin-top: 40px;
-    }
-  </style>
+@media (min-width: 1000px) {
+    .stage { grid-template-columns: 1fr 320px; gap: 48px; padding: 40px; }
+    .side { position: sticky; top: 40px; }
+    .stage .title { font-size: clamp(40px, 4.4vw, 72px); }
+}
+</style>
 </head>
 
 <body>
+<div class="stage">
+    <main>
+        <!-- VOTING -->
+        <section id="vote-view">
+            <ol class="steps" id="steps"></ol>
+            <p class="eyebrow" id="eyebrow">1. kör</p>
+            <h1 class="title" id="prompt">Betöltés…</h1>
+            <div class="rows" id="rows"></div>
+        </section>
 
-  <h1>Szavazás Eredmények – Talentum Nap</h1>
+        <!-- PLAY -->
+        <section id="play-view" class="final" hidden>
+            <p class="eyebrow" id="play-eyebrow">Eddig ezt építettük</p>
+            <h1 class="title">Kipróbálás!</h1>
+            <div class="build" id="build"></div>
+            <p class="banner visible">Nézd meg a <strong>kódodat a telefonodon</strong>, és írd be a játékba!</p>
+        </section>
+    </main>
 
-  <div id="results">
-    Betöltés...
-  </div>
+    <aside class="side">
+        <div class="qr"><img src="assets/qrcode.png" alt="QR kód a szavazáshoz"></div>
+        <div class="url" id="url"></div>
+        <div class="panel" id="total-box">
+            <div class="total" id="total">0</div>
+            <div class="muted">szavazat ebben a körben</div>
+        </div>
+        <span class="live" id="live">Élő</span>
+    </aside>
+</div>
 
-  <div class="image">
-    <img src="assets/qrcode.png" alt="">
-  </div>
+<script type="module">
+import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import {
+    db, ROUNDS, VOTE_URL_LABEL, roundOptions, leaderIndex, crispIfSmall, clampRound,
+} from "./js/shared.js";
 
+const $ = (id) => document.getElementById(id);
+
+const state = { round: 0, options: null, phase: "vote", winners: {}, locked: {} };
+let builtRound = -1;
+
+$("url").textContent = VOTE_URL_LABEL;
+
+const steps = $("steps");
+steps.style.setProperty("--count", ROUNDS.length);
+ROUNDS.forEach((r) => {
+    const li = document.createElement("li");
+    li.className = "step";
+    li.textContent = r.label;
+    steps.appendChild(li);
+});
+
+function buildRows(round) {
+    builtRound = round;
+    const rows = $("rows");
+    rows.innerHTML = "";
+    roundOptions(state.options, round).forEach((opt) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.innerHTML = `
+            <span class="badge win">★ Győztes</span>
+            <div class="art"><img alt=""></div>
+            <div>
+                <div class="head"><span class="name"></span><span class="pct"></span></div>
+                <div class="track"><div class="fill"></div></div>
+                <div class="count"></div>
+            </div>`;
+        const img = row.querySelector("img");
+        img.src = opt.img;
+        crispIfSmall(img);
+        rows.appendChild(row);
+    });
+}
+
+function renderVote() {
+    const round = state.round;
+    if (builtRound !== round) buildRows(round);
+
+    $("eyebrow").textContent = `${round + 1}. kör / ${ROUNDS.length}`;
+    $("prompt").textContent = ROUNDS[round].prompt;
+    [...steps.children].forEach((li, i) => {
+        li.classList.toggle("active", i === round);
+        li.classList.toggle("done", i < round);
+    });
+
+    const list = roundOptions(state.options, round);
+    const total = list.reduce((n, o) => n + o.votes, 0);
+    const leader = leaderIndex(list);
+    const locked = !!state.locked[round];
+    const winner = state.winners[round];
+
+    [...$("rows").children].forEach((row, i) => {
+        const opt = list[i];
+        const pct = total ? Math.round((opt.votes / total) * 100) : 0;
+        row.querySelector(".name").textContent = opt.text;
+        row.querySelector(".pct").textContent = pct + "%";
+        row.querySelector(".fill").style.width = pct + "%";
+        row.querySelector(".count").textContent = `${opt.votes} szavazat`;
+        row.classList.toggle("leading", i === leader);
+        row.classList.toggle("winner", locked && winner === i);
+    });
+
+    $("total").textContent = total;
+    $("total-box").hidden = false;
+}
+
+function renderPlay() {
+    const build = $("build");
+    build.innerHTML = "";
+    $("play-eyebrow").textContent = `${state.round + 1}. kör kész – eddig ezt építettük`;
+    // Only the features unlocked so far: rounds 0..current.
+    ROUNDS.slice(0, state.round + 1).forEach((r, round) => {
+        const list = roundOptions(state.options, round);
+        const pick = state.winners[round] ?? leaderIndex(list);
+        if (pick == null || pick < 0) return; // nobody voted in this round
+        const slot = document.createElement("div");
+        slot.className = "slot";
+        slot.innerHTML = `<div class="art"><img alt=""></div><div class="label"></div><div class="val"></div>`;
+        const img = slot.querySelector("img");
+        img.src = list[pick].img;
+        crispIfSmall(img);
+        slot.querySelector(".label").textContent = r.label;
+        slot.querySelector(".val").textContent = list[pick].text;
+        build.appendChild(slot);
+    });
+    $("total-box").hidden = true;
+}
+
+function render() {
+    const playing = state.phase === "play";
+    $("vote-view").hidden = playing;
+    $("play-view").hidden = !playing;
+    playing ? renderPlay() : renderVote();
+}
+
+const ignore = () => {};
+onValue(ref(db, "currentGroup"), (s) => { state.round = clampRound(s.val()); render(); });
+onValue(ref(db, "options"), (s) => { state.options = s.val(); render(); });
+onValue(ref(db, "phase"), (s) => { state.phase = s.val() || "vote"; render(); }, ignore);
+onValue(ref(db, "winners"), (s) => { state.winners = s.val() || {}; render(); }, ignore);
+onValue(ref(db, "locked"), (s) => { state.locked = s.val() || {}; render(); }, ignore);
+onValue(ref(db, ".info/connected"), (s) => {
+    $("live").classList.toggle("offline", !s.val());
+    $("live").textContent = s.val() ? "Élő" : "Kapcsolódás…";
+});
+</script>
 </body>
 </html>
