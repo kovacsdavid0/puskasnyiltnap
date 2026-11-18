@@ -7,6 +7,8 @@
     "winners":      { ".write": "auth != null" },
     "locked":       { ".write": "auth != null" },
     "resetFlag":    { ".write": "auth != null" },
+    "showCodes":    { ".write": "auth != null" },
+    "showQr":       { ".write": "auth != null" },
 
     "options": {
       ".write": "auth != null",

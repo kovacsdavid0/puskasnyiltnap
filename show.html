@@ -112,12 +112,31 @@
     line-height: 1;
 }
 
+.codes-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }
+.codes-round { min-width: 0; padding: 14px; color: var(--ink); background: var(--card); border: var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.codes-round h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: clamp(18px, 1.7vw, 28px); }
+.codes-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 0; border-top: 2px solid rgba(22, 12, 46, 0.15); font-weight: 800; font-size: clamp(14px, 1.3vw, 20px); }
+.codes-row .c { font-size: clamp(22px, 2.3vw, 38px); font-variant-numeric: tabular-nums; letter-spacing: 3px; padding: 2px 10px; background: var(--yellow); border: 3px solid var(--ink); border-radius: 8px; }
+@media (min-width: 1000px) { .codes-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
 .final .build { margin-bottom: 8px; }
 .final .slot .val { font-size: clamp(18px, 2vw, 28px); }
 
+/* No QR: the info moves into a slim bar under the content */
+.stage.no-qr .side {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 16px 32px;
+}
+.stage.no-qr .side .panel { display: flex; align-items: baseline; gap: 14px; padding: 12px 22px; }
+.stage.no-qr .side .total { font-size: clamp(28px, 3.4vw, 48px); }
+
 @media (min-width: 1000px) {
-    .stage { grid-template-columns: 1fr 320px; gap: 48px; padding: 40px; }
-    .side { position: sticky; top: 40px; }
+    .stage { padding: 40px; }
+    .stage:not(.no-qr) { grid-template-columns: 1fr 320px; gap: 48px; }
+    .stage:not(.no-qr) .side { position: sticky; top: 40px; }
     .stage .title { font-size: clamp(40px, 4.4vw, 72px); }
 }
 </style>
@@ -141,10 +160,17 @@
             <div class="build" id="build"></div>
             <p class="banner visible">Nézd meg a <strong>kódodat a telefonodon</strong>, és írd be a játékba!</p>
         </section>
+
+        <!-- ALL CODES (admin switch) -->
+        <section id="codes-view" hidden>
+            <p class="eyebrow">Titkos kódok</p>
+            <h1 class="title">Az összes kód</h1>
+            <div class="codes-grid" id="codes-grid"></div>
+        </section>
     </main>
 
     <aside class="side">
-        <div class="qr"><img src="assets/qrcode.png" alt="QR kód a szavazáshoz"></div>
+        <div class="qr" id="qr" hidden><img src="assets/qrcode.png" alt="QR kód a szavazáshoz"></div>
         <div class="url" id="url"></div>
         <div class="panel" id="total-box">
             <div class="total" id="total">0</div>
@@ -162,10 +188,11 @@ import {
 
 const $ = (id) => document.getElementById(id);
 
-const state = { round: 0, options: null, phase: "vote", winners: {}, locked: {} };
+const state = { round: 0, options: null, phase: "vote", winners: {}, locked: {}, showCodes: false, showQr: false };
 let builtRound = -1;
 
 $("url").textContent = VOTE_URL_LABEL;
+const stageEl = document.querySelector(".stage");
 
 const steps = $("steps");
 steps.style.setProperty("--count", ROUNDS.length);
@@ -252,11 +279,44 @@ function renderPlay() {
     $("total-box").hidden = true;
 }
 
+function renderCodes() {
+    const grid = $("codes-grid");
+    grid.innerHTML = "";
+    ROUNDS.forEach((r, round) => {
+        const box = document.createElement("div");
+        box.className = "codes-round";
+        const h = document.createElement("h2");
+        h.textContent = `${round + 1}. ${r.label}`;
+        box.appendChild(h);
+        roundOptions(state.options, round).forEach((opt, i) => {
+            const row = document.createElement("div");
+            row.className = "codes-row";
+            const name = document.createElement("span");
+            name.textContent = opt.text;
+            const code = document.createElement("span");
+            code.className = "c";
+            code.textContent = r.codes[i];
+            row.append(name, code);
+            box.appendChild(row);
+        });
+        grid.appendChild(box);
+    });
+}
+
 function render() {
+    $("qr").hidden = !state.showQr;
+    stageEl.classList.toggle("no-qr", !state.showQr);
+    const codes = state.showCodes;
     const playing = state.phase === "play";
-    $("vote-view").hidden = playing;
-    $("play-view").hidden = !playing;
-    playing ? renderPlay() : renderVote();
+    $("codes-view").hidden = !codes;
+    $("vote-view").hidden = codes || playing;
+    $("play-view").hidden = codes || !playing;
+    if (codes) {
+        renderCodes();
+        $("total-box").hidden = true;
+    } else {
+        playing ? renderPlay() : renderVote();
+    }
 }
 
 const ignore = () => {};
@@ -265,6 +325,8 @@ onValue(ref(db, "options"), (s) => { state.options = s.val(); render(); });
 onValue(ref(db, "phase"), (s) => { state.phase = s.val() || "vote"; render(); }, ignore);
 onValue(ref(db, "winners"), (s) => { state.winners = s.val() || {}; render(); }, ignore);
 onValue(ref(db, "locked"), (s) => { state.locked = s.val() || {}; render(); }, ignore);
+onValue(ref(db, "showCodes"), (s) => { state.showCodes = s.val() === true; render(); }, ignore);
+onValue(ref(db, "showQr"), (s) => { state.showQr = s.val() === true; render(); }, ignore);
 onValue(ref(db, ".info/connected"), (s) => {
     $("live").classList.toggle("offline", !s.val());
     $("live").textContent = s.val() ? "Élő" : "Kapcsolódás…";
